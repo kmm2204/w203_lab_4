@@ -1,0 +1,234 @@
+---
+title: 'Lab 4: Healthy Momma, Healthy Baby'
+author: "Krist Mar and Nikki Haas"
+date: "12/1/2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### A Nice Introduction that Makes Us Sound Like Pros
+
+
+
+### Step 1: Read in the Data
+
+```{r}
+setwd('/Users/krista/Desktop/203/Lab_4/w203_lab_4')
+load('bwght_w203.RData')
+desc
+```
+
+### Step 2: Exploratory Data Analysis
+
+First, get summary statistics on each element of the dataset:
+
+
+```{r}
+nrow(data)
+
+summary(data)
+
+
+```
+
+
+##### *Response Variables*
+
+The bwght, lbwght, omaps and fmaps variables are related to the health of the baby.
+
+The first thing to check is if these variables are collinar.  We will omit lbwghts as that is a function of bwghts.
+
+```{r}
+library(ggplot2)
+cor(data$omaps, data$fmaps, use = "complete.obs")
+cor(data$lbwght, data$fmaps, use = "complete.obs")
+p <- ggplot(data, aes(lbwght, omaps)) + geom_point(size = 0.25) + 
+  geom_smooth(method = "lm", se = FALSE) + geom_point(aes(colour = fmaps)) 
+p
+```
+
+
+```{r}
+p <- ggplot(data, aes(factor(fmaps), lbwght)) + geom_boxplot() 
+p
+```
+
+
+Looking at the data, we can be reasonably assured that the response variables are related, but not collinear. It may be best to make a combined variable of `fmaps` and `omaps` such as `mapscombined = fmaps + omaps`.  The difference would not make much sense compared to the sum; 10 - 10 and 2 - 2 are both zero, after all.  
+
+
+##### *Regressors*
+
+The variables monpre and npvis are related to the prenatal care given during pregnancy.  Let us review them for collinearity:
+```{r}
+cor(data$npvis, data$monpre, use = "complete.obs")
+ggplot(data, aes(monpre, npvis)) + geom_point(size = 0.25) + 
+  geom_smooth(method = "lm", se = FALSE) + geom_jitter()
+ggplot(data, aes(factor(monpre), npvis)) + geom_boxplot()  
+```
+
+From this set, we can see that the data is not collinear, and indeed we can see that we might have some reporting errors.  5 mothers are listed as starting prenatal care in month 0 of their pregnancy, but they visited the doctor 0 times.  These probably denote missing information or an error in reporting.  Unfortunately, this data does show a definitive downward trend leading us to suspect that the number of visits is a function of month prenatal care began.  This makes sense intuitively; if a mother starts prenatal care in her 2nd month of pregnancy, she has ample time for frequent doctor visits.  However, if she starts her prenatal care towards the end of her pregnancy, she does not have enough time to visit the doctor as often as a woman who started in month 2.
+
+```{r}
+ggplot(data, aes(x=monpre)) + geom_histogram(aes(y = ..count..),bins = 10) +
+  ggtitle("Month Prenatal Care began") 
+ggplot(data, aes(x=sqrt(monpre))) + geom_histogram(aes(y = ..count..), bins = 10) + 
+  ggtitle("Month Prenatal Care Began, Half Power")
+ggplot(data, aes(x=log(monpre))) + geom_histogram(aes(y = ..count..), bins = 10) + 
+  ggtitle("Month Prenatal Care Began, Natural Log")
+ggplot(data, aes(x=(monpre^2))) + geom_histogram(aes(y = ..count..), bins = 10) +
+  ggtitle("Month Prenatal Care Began, Square Power")
+ggplot(data, aes(x=npvis)) + geom_histogram(aes(y = ..count..), bins = 15) + 
+  ggtitle("Number of Prenatal Visits")
+```
+
+```{r}
+hist(data$fmaps)
+hist(data$npvis)
+hist(data$omaps)
+hist(data$monpre)
+```
+
+
+
+Look at the extreme fmops case
+```{r}
+data[data$fmaps< 4,]
+```
+
+
+All in all, the number of visits follows a mostly normal curve, and the square root of the month prenatal care began follow a mostly normal curve.  Then we say smart things about how that will all relate to each other.
+
+### Step 3: Modeling 
+
+Model 1:
+
+```{r}
+model1<-lm(bwght ~ monpre + npvis, data = data)
+```
+
+6 CLM assumptions:
+1) Linearity in parameters
+Yes.
+
+2) Random sampling of data
+Not random because are not including still births or miscarriages. 
+
+3) No perfect co-linearity 
+
+```{r}
+cor(data$monpre, data$npvis, use="complete.obs")
+```
+
+There is no perfect multicolineraity between our variables.  With a correlation of -0.3061006, this shows that the number of prenatal visits is moderately negatively correlated to the month in whcih prenatal care started. 
+
+4) Zero conditional mean
+
+```{r}
+plot(model1, which=1)
+```
+
+Looking at the Residuals vs. Fitted plot shows that the zero conditional mean is met because the red line is approximately at 0. 
+
+5) Homoskedacity of errors
+
+From the residuals vs. fitted plot, we can see that we do not have homoskedacity of erorrs because the data is not in an even band across the plot. This means that we'll have to white standard errors, which are roboust to heteroskadacity. 
+
+
+
+6) Errors are normally distributed 
+
+```{r}
+par(mar = rep(2, 4))
+plot(model1, which=2)
+shapiro.test(model1$residuals)
+```
+
+Checking the normal Q-Q plot, it looks like our errors are roughly normally distributed.
+
+Using the shapiro wilke test, we can reject the null hypothesis that the population has a normal distribution. 
+
+library(lmtest)
+library(sandwich)
+coeftest(model1,	vcov	=	vcovHC)
+
+
+Model 3:
+```{r}
+model3<-lm(bwght ~ monpre + npvis +cigs + drink +mage, data = data)
+
+```
+
+6 CLM assumptions:
+1) Linearity in parameters
+2) Random sampling of data
+3) No perfect co-linearity 
+
+```{r}
+cor(data$monpre, data$npvis, use="complete.obs")
+```
+
+There is no perfect multicolineraity between our variables.  With a correlation of -0.3061006, this shows that the number of prenatal visits is moderately negatively correlated to the month in whcih prenatal care started. 
+
+4) Zero conditional mean
+
+```{r}
+plot(model3, which=1)
+```
+
+Looking at the Residuals vs. Fitted plot shows that the zero conditional mean is met because the red line is approximately at 0. 
+
+5) Homoskedacity of errors
+
+From the residuals vs. fitted plot, we can see that we do not have homoskedacity of erorrs because the data is not in an even band across the plot. This means that we'll have to white standard errors, which are roboust to heteroskadacity. 
+
+
+
+6) Errors are normally distributed 
+
+```{r}
+par(mar = rep(2, 4))
+plot(model3, which=2)
+shapiro.test(model3$residuals)
+```
+
+Checking the normal Q-Q plot, it looks like our errors are roughly normally distributed.
+
+Using the shapiro wilke test, we can reject the null hypothesis that the population has a normal distribution. 
+
+library(lmtest)
+library(sandwich)
+coeftest(model3,	vcov	=	vcovHC)
+
+
+
+data$amaps=(data$omaps+data$fmaps)/2
+data$nlbw=-(data$lbw)
+
+model1a<-lm(amaps~npvis+monpre, data=data)
+
+coeftest(model1a, vcov = vcovHC)
+
+
+model3a<-lm(amaps~npvis+monpre+mage+drink+cigs+male, data=data)
+
+coeftest(model3a, vcov=vcovHC)
+
+### Step 4: CLM and the Models
+
+
+### Step 5: Regression Tables and Model Analysis
+
+### Step 6: Causality
+
+
+### Biases and Limitation
+
+This data is extremely biased in that no still births were included in our dataset.  It is a sad fact in the United States that over 2 in 1,000 births are [stillbirths](https://www.washingtonpost.com/news/wonk/wp/2014/09/29/our-infant-mortality-rate-is-a-national-embarrassment/?utm_term=.58dedfd178fd).  Since we do not know the prenatal care data for stillbirths, we cannot completely guage how much prenatal care contributes to a child's health at birth.
+
+### Step 7: Conclusion
+
+
+
