@@ -148,7 +148,7 @@ plot(model1, which=2)
 shapiro.test(model1$residuals)
 ```
 
-Checking the normal Q-Q plot, it looks like our errors are roughly normally distributed. The Q-Q plot isn't perfectly normal, but we can use the CLT to assume normality of errors.  
+Checking the normal Q-Q plot, it looks like our errors are roughly normally distributed. The Q-Q plot isn't perfectly normal.
 
 Using the shapiro wilke test, we can reject the null hypothesis that the population has a normal distribution.
 
@@ -205,7 +205,6 @@ We did not see very good results with the APGAR score variations, but as discuss
 As previously stated, our regressors do not have perfect collinearity.
 
 4) Zero conditional mean
-
 
 Looking at the Residuals vs. Fitted plot above shows that the zero conditional mean is met because the red line is approximately at 0 and has very little curvature.
 
@@ -271,8 +270,6 @@ shapiro.test(model3$residuals)
 Checking the normal Q-Q plot, it looks like our errors are roughly normally distributed.
 
 Using the shapiro wilke test, we can reject the null hypothesis that the population has a normal distribution.  
-
-However, using the CLT, we can assume normality of errors.
 
 ```{r}
 coeftest(model3, vcov=vcovHC)
@@ -382,7 +379,6 @@ Birth weight increases with increasing birth order. [6]  However, prenatal care 
 
 3) Socioeconomic status
 Higher socioeconomic status is likely to result in higher birthweight.  Higher socioeconomic status is likely to be correlated to having better access to prenatal care. Therefore our model is likely overpredicting the effect of prenatal care on birthweight because we are not including socioeconomic status in our model.
-
 
 Other potential omitted variables include genetics, weight of mother, age of mother's first child, number of children (e.g. twins, etc.).  We will not do a full analysis of all of these other potential omitted variables, but want to highlight the fact that there are many potential omitted variables.  Because of all of the omitted variables, we cannot claim that our model is causal. 
 
