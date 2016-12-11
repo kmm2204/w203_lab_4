@@ -1,0 +1,427 @@
+---
+title: 'Lab 4: Healthy Momma, Healthy Baby'
+author: "Krista Mar and Nikki Haas"
+date: "12/1/2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Introduction
+
+
+According to the NIH, having a healthy pregancy is one of the best ways to promote a healthy birth. Getting early and regular prenatal care improves the chances of a healthy pregnancy.[1] While most low birth weight children will end up having normal outcomes, as a group they generally have more health issues including subnormal neural outcomes than healthy weight babies[2].  Birthweight is a predictor of brain development in childhood and adulthood. [2a]
+
+Apgar scores are used as an evaluative measure to see if a newborn needs immediate attention. However, the using Apgar scores to attempt to predict long-term developmental outcomes of infants in not appropriates, so we will not be using Apgar scores in our outcome variable for newborn health. [3]  
+
+Therefore we will use birthweight as our outcome variable for our analysis based on historical research because of the limitations of our dataset.  
+
+Using data from the National Center for Health Statistics and from birth certificates, we will look at the impact of prenatal health care on health outcomes for newborn infants.  
+
+### Step 1: Read in the Data
+
+```{r}
+setwd("/Users/krista/Desktop/Final lab 4")
+load("bwght_w203.RData")
+desc
+```
+
+### Step 2: Exploratory Data Analysis
+
+First, get summary statistics on each element of the dataset:
+
+
+```{r}
+nrow(data)
+
+summary(data)
+
+
+```
+
+
+##### *Response Variables*
+
+The bwght, lbwght, omaps and fmaps variables are related to the health of the baby.
+
+The first thing to check is if these variables are collinar.  We will omit bwghts as that is a function of lbwghts.
+
+```{r}
+library(ggplot2)
+cor(data$omaps, data$fmaps, use = "complete.obs")
+cor(data$lbwght, data$fmaps, use = "complete.obs")
+p <- ggplot(data, aes(omaps, lbwght)) + geom_point(size = 0.25) + 
+  geom_smooth(method = "lm", se = FALSE) + geom_point(aes(colour = fmaps)) +
+  ggtitle("Scatterplot of log(weight) against One Minute APGAR test,\n
+          with 5 minute APGAR test heatmap")
+p
+```
+
+
+```{r}
+p <- ggplot(data, aes(factor(fmaps), lbwght)) + geom_boxplot() 
+p
+```
+
+
+Look at the extreme fmaps case
+```{r}
+data[data$fmaps< 4,]
+```
+
+
+Looking at the data, we can be reasonably assured that the response variables are related, but not collinear. It may be best to make a combined variable of `fmaps` and `omaps` such as `mapscombined = fmaps + omaps`.  The difference would not make much sense compared to the sum; 10 - 10 and 2 - 2 are both zero, after all.  
+
+
+##### *Regressors*
+
+The variables monpre and npvis are related to the prenatal care given during pregnancy.  Let us review them for collinearity:
+```{r}
+cor(data$npvis, data$monpre, use = "complete.obs")
+ggplot(data, aes(monpre, npvis)) + geom_point(size = 0.25) + 
+  geom_smooth(method = "lm", se = FALSE) + geom_jitter()
+ggplot(data, aes(factor(monpre), npvis)) + geom_boxplot() 
+```
+
+From this set, we can see that the data is not collinear, and indeed we can see that we might have some reporting errors.  5 mothers are listed as starting prenatal care in month 0 of their pregnancy, but they visited the doctor 0 times.  These probably denote missing information or an error in reporting.  Unfortunately, this data does show a definitive downward trend leading us to suspect that the number of visits is a function of month prenatal care began.  This makes sense intuitively; if a mother starts prenatal care in her 2nd month of pregnancy, she has ample time for frequent doctor visits.  However, if she starts her prenatal care towards the end of her pregnancy, she does not have enough time to visit the doctor as often as a woman who started in month 2.
+
+```{r}
+ggplot(data, aes(x=monpre)) + geom_histogram(aes(y = ..count..),bins = 10) +
+  ggtitle("Month Prenatal Care began") 
+ggplot(data, aes(x=sqrt(monpre))) + geom_histogram(aes(y = ..count..), bins = 10) +
+  ggtitle("Month Prenatal Care Began, Half Power")
+ggplot(data, aes(x=log(monpre))) + geom_histogram(aes(y = ..count..), bins = 10) + 
+  ggtitle("Month Prenatal Care Began, Natural Log")
+ggplot(data, aes(x=(monpre^2))) + geom_histogram(aes(y = ..count..), bins = 10) +
+  ggtitle("Month Prenatal Care Began, Square Power")
+ggplot(data, aes(x=npvis)) + geom_histogram(aes(y = ..count..), bins = 15) + 
+  ggtitle("Number of Prenatal Visits")
+
+ggplot(data, aes(monpre, lbwght)) + geom_point(size = 0.25) + 
+  geom_smooth(method = "lm", se = FALSE)  +
+  ggtitle("Scatterplot of weight against \n month prenatal care began ")
+```
+
+All in all, the number of visits follows a mostly normal curve, and the square root of the month prenatal care began follow a mostly normal curve.  However, we can tell right now that `monpre` does not have much practical significance with respect to the baby's weight from looking at the graph.
+
+
+### Step 3: Modeling and checking CLM
+
+##### Model 1: Basic Linear Model
+
+```{r}
+model1<-lm(bwght ~ monpre + npvis, data = data)
+summary(model1)$r.squared
+```
+6 CLM assumptions: 
+
+1) Linearity in parameters: We can assume this.
+
+2) Random sampling of data: Not random because are not including still births.  
+
+3) No perfect co-linearity.
+
+```{r}
+
+cor(data$monpre, data$npvis, use="complete.obs")
+```
+There is no perfect multicolineraity between our variables. With a correlation of -0.3061006, this shows that the number of prenatal visits is moderately negatively correlated to the month in which prenatal care started.  This makes sense because in the scale for prenatal care visits, being lower (e.g. starting in month 0) is better.  If you started prenatal care visits in month 0, you are likely to have visited the doctor more times. 
+
+4) Zero conditional mean
+
+```{r}
+plot(model1, which=1)
+```
+
+Looking at the Residuals vs. Fitted plot shows that the zero conditional mean is met because the red line is approximately at 0.
+
+5) Homoskedacity of errors
+
+From the residuals vs. fitted plot, we can see that we do not have homoskedacity of erorrs because the data is not in an even band across the plot. This means that we'll have to white standard errors, which are roboust to heteroskadacity.
+
+6) Errors are normally distributed
+
+```{r}
+par(mar = rep(2, 4))
+plot(model1, which=2)
+shapiro.test(model1$residuals)
+```
+
+Checking the normal Q-Q plot, it looks like our errors are roughly normally distributed. The Q-Q plot isn't perfectly normal.
+
+Using the shapiro wilke test, we can reject the null hypothesis that the population has a normal distribution.
+
+```{r}
+library(lmtest)
+library(sandwich)
+coeftest(model1, vcov = vcovHC)
+```
+
+Running our coeftest, we see that the number of prenatal care visits is statistically significant.  We also notice taht month prenatal care began is not statistically significant.  
+
+##### Model 2: An Alternate Main Model
+
+The 1 minute and 5 minute APGAR scores on their own do not tell us much. As we can see from the heatmap on the first scatterplot, a baby who has a low one minute score tends to have a higher five minute score.  There are very few examples of a baby having a worse five minute score than a one minute score:
+
+```{r}
+nrow(data[!is.na(data$fmaps) < !is.na(data$omaps),])
+```
+
+However, we can get some information if we take the product of `omaps` and `fmaps` and then normalize it.  A baby that goes from 0 to 10 then would have an overal low score compared to a baby who started with a score of 10 and was still at 10 5 minutes later, so the difference doesn't make sense.
+
+
+```{r}
+data$product_apgarscores = data$omaps * data$fmaps
+data$normalized_product_apgar =  
+  (data$product_apgarscores - 
+     mean(!is.na(data$product_apgarscores)))/sd(!is.na(data$product_apgarscores))
+
+a8 = lm(data$normalized_product_apgar~data$monpre + data$npvis)
+a9 = lm(data$normalized_product_apgar~ data$npvis)
+
+AIC(a8)
+AIC(a9)
+```
+
+
+Model a8 has a nominally lower AIC score, so let's continue on with that one.
+
+```{r}
+summary(a8)
+plot(a8)
+```
+
+We did not see very good results with the APGAR score variations, but as discussed in the introduction, we were expecting the baby's birth weight would have a better indication.
+
+6 CLM assumptions: 
+
+1) Linearity in parameters: We can assume this.
+
+2) Random sampling of data: This data is not random because stillbirths are omitted.
+
+3) No perfect co-linearity
+
+As previously stated, our regressors do not have perfect collinearity.
+
+4) Zero conditional mean
+
+Looking at the Residuals vs. Fitted plot above shows that the zero conditional mean is met because the red line is approximately at 0 and has very little curvature.
+
+5) Homoskedacity of errors
+
+From the residuals vs. fitted plot, we can see that we do not have homoskedacity of erorrs because the data is not in an even band across the plot. This means that we'll have to use white standard errors, which are roboust to heteroskadacity.
+
+6) Errors are normally distributed
+
+```{r}
+par(mar = rep(2, 4))
+shapiro.test(a8$residuals)
+```
+
+From normal Q-Q plot, it looks like our errors are roughly normally distributed except at the very highest and very lowest percentiles.  This is to be expected in a dataset such as this.
+
+Using the shapiro wilke test, we can reject the null hypothesis that the population has a normal distribution.
+
+```{r}
+library(lmtest)
+library(sandwich)
+coeftest(a8, vcov = vcovHC)
+```
+
+##### Model 3: Unbiased Covariants
+
+For our third model, we added in additional features that we think will improve our model, but not introduce bias.  We included cigarette consumption and alcohol consumption, which we think would have a negative impact on birthweight. Male babies tend to be heavier than female babies.  We've also included mother's and father's age in our model due to scientific research that has found an effect of these variables.  
+
+```{r}
+model3<-lm(bwght ~ monpre + npvis + cigs + drink + mage + fage +  male, data = data)
+```
+6 CLM assumptions: 
+
+1) Linearity in parameters: We can assume this.
+
+2) Random sampling of data: This data is not random because still births are omitted.
+
+3) No perfect co-linearity:  As previously stated, our regressors do not have perfect collinearity.
+
+```{r}
+cor(data[,c('monpre', 'npvis', 'cigs', 'drink', 'mage', 'male')], use="complete.obs")
+```
+
+
+4) Zero conditional mean
+
+```{r}
+plot(model3, which=1)
+```
+Looking at the Residuals vs. Fitted plot shows that the zero conditional mean is met because the red line is approximately at 0.
+
+5) Homoskedacity of errors
+
+From the residuals vs. fitted plot, we can see that we do not have homoskedacity of erorrs because the data is not in an even band across the plot. This means that we'll have to white standard errors, which are roboust to heteroskadacity.
+
+6) Errors are normally distributed
+
+```{r}
+par(mar = rep(2, 4))
+plot(model3, which=2)
+shapiro.test(model3$residuals)
+```
+Checking the normal Q-Q plot, it looks like our errors are roughly normally distributed.
+
+Using the shapiro wilke test, we can reject the null hypothesis that the population has a normal distribution.  
+
+```{r}
+coeftest(model3, vcov=vcovHC)
+AIC(model1)
+AIC(model3)
+```
+
+Not all of the covariates that we thought would have statistical significance do.  Number of prenatal visists, father's age, and the baby being male male all have positive betas.  Mother's cigarette consumption has a negative impact on birthweight.  Our other covariates including number of prenatal visists, mother's alcohol consumption, and mother's age do not have a statistically signifcant effect on birthweight. 
+
+Our AIC for model 3 has gone down from 27428.8 in model 1 to 25498.84 in model 3, which shows that model 3 is a better fit. 
+
+
+#### Model 4: Problematic Covariants
+
+We will select the attributes of baby's gender and parent's race as well.  In the United States, it is a sad fact that minorities such as African Americans do not have adequate access to proper health care as often as non-minorities.  Their babies might not fare as well, and their mothers may not get the proper prenatal care.  
+
+From all of the summaries, we can tell that the t-statistic for the `monpre` variable is not significant.  Thus, we cannot trust this particular regressor, and will omit it from this test.
+
+```{r}
+c1 = lm(data$bwght ~ data$npvis + data$male +
+          data$mblck + data$fblck)
+
+summary(c1)
+AIC(c1)
+plot(c1)
+```
+
+
+6 CLM assumptions: 
+
+1) Linearity in parameters: We can assume this.
+
+2) Random sampling of data: This data is not random because stillbirths are omitted.
+
+3) No perfect co-linearity in regressors:
+
+```{r}
+cor(data[,c('npvis', 'mblck', 'fblck', 'male')], use="complete.obs")
+```
+As previously stated, our regressors do not have perfect collinearity.
+
+4) Zero conditional mean
+
+Looking at the Residuals vs. Fitted plot above shows that the zero conditional mean has not been met because the red line shows curvature for larger babies.
+
+5) Homoskedacity of errors
+
+From the residuals vs. fitted plot, we can see that we do not have homoskedacity of erorrs because the data is not in an even band across the plot. This means that we'll have to use white standard errors, which are roboust to heteroskadacity.
+
+6) Errors are normally distributed
+
+```{r}
+par(mar = rep(2, 4))
+shapiro.test(c1$residuals)
+```
+
+From normal Q-Q plot, it looks like our errors are roughly normally distributed except at the very lowest percentiles.  This is to be expected in a dataset such as this.
+
+Using the shapiro wilke test, we can reject the null hypothesis that the population has a normal distribution.
+
+```{r}
+library(lmtest)
+library(sandwich)
+coeftest(c1, vcov = vcovHC)
+```
+
+As we were hoping with such biased data, we can see that the race of the parents is not statistically significant so it is inappropriate to include it in our model.
+
+
+### Step 4: Regression Tables and Model Analysis
+
+```{r, results='asis'}
+library(stargazer)
+
+se.model1 = sqrt(diag(vcovHC(model1)))
+se.a8 = sqrt(diag(vcovHC(a8)))
+se.model3 = sqrt(diag(vcovHC(model3)))
+se.c1 = sqrt(diag(vcovHC(c1)))
+
+stargazer(model1,a8,model3,c1, type = "latex", omit.stat = "f", 
+          se = list(se.model1, se.a8, se.model3, se.c1),
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          table.placement = '!h')
+```
+
+See table 1 on the next page.
+
+```{r}
+AIC(model1)
+AIC(model3)
+AIC(c1)
+```
+
+From the Akaike Information Criterion test, we see that `model3` is the best option for a linear model predicting the health of the baby.  Model3 has the highest adjusted R^2, showing that virutally 2% of all variability in the baby's health indicators can be determined by the months prenatal visits started, number of prenatal visits, the mother's smoking and driking habits, the mother's age, and the baby's gender.  As always, `monpre` was not a statistically significant regressor, and neither was the mother's age or drinking habits.  In other words for practical significance, we can say if the baby is a boy we can expect he will weigh 80.937 grams more than if he is a girl, for every year older his mother is, he will weight 5.317 grams more, for every alcoholic drink his mother inbibes per week he will weigh 14.050 grams less, for every cigarette his mother smokes per day, he will weigh 11.229 grams less, for each prenatal visit, he will weight 15.505 more, and for each month the mother waits to to start her prenatal care, the baby weight 20.901 grams more.  Just writing it out what the model means stresses even more that we should ignore the `monpre` variable in modeling a baby's health.  
+
+\pagebreak
+
+### Step 5: Causality
+
+We cannot claim causality in our model.  We have an strong correlation, but we are hesitant to call our models causal because of omitted variables.  There are many other factors that influence birthweight that are not captured in this data set, which leads to omitted variable bias.  We know we have ommitted variable bias because our R-squared value of all of our models is very low at around 1%- 2%. We will provide a few examples of potential omitted variables with analysis and then list a few more. 
+
+1) Nutrition
+Mother's nutrition is likely to have an impact on birthweight. If a mother has good nutrition she will also likely have good prenatal care. Nutrition would have a positive influence on birthweight.  This means that our model is overstating the value of prenatal care on birthweight.  Our beta in our model for prenatal care in this case is higher than it should be. 
+
+2) Birth order
+Birth weight increases with increasing birth order. [6]  However, prenatal care decreases with birth order. Since we do not have birth order in our model, our model is likely underpredicting the effect of prenatal care on birthweight. 
+
+3) Socioeconomic status
+Higher socioeconomic status is likely to result in higher birthweight.  Higher socioeconomic status is likely to be correlated to having better access to prenatal care. Therefore our model is likely overpredicting the effect of prenatal care on birthweight because we are not including socioeconomic status in our model.
+
+Other potential omitted variables include genetics, weight of mother, age of mother's first child, number of children (e.g. twins, etc.).  We will not do a full analysis of all of these other potential omitted variables, but want to highlight the fact that there are many potential omitted variables.  Because of all of the omitted variables, we cannot claim that our model is causal. 
+
+### Biases and Limitation
+
+This data is extremely biased in that no still births were included in our dataset.  It is a sad fact in the United States that over 2 in 1,000 births are stillbirths[5].  Since we do not know the prenatal care data for stillbirths, we cannot completely guage how much prenatal care contributes to a child's health at birth.
+
+In addition, it appears that there is little correlation between the Apgar score and the later health of the baby.  The Apar is only meant to be used in the context of emergency situations.  In this manner, looking at a baby's weight will give us deeper insight into the baby's overall health.
+
+No miscarriages were included in the data, so this further biases our data.
+
+Using birthweight as a proxy for infant health was the best that we could do given our data set, but is by no means a comprehensive view on an infants' health.
+
+In section 4, we talked about variables that could absorb the effect of prenatal care in our model. These variables could include race. 
+
+### Step 7: Conclusion
+
+Through our data analysis, we saw that prenatal care has a statistically significant positive effect on infant health. This analysis was operationalized in our data set with prenatal care as number of prenatal care visits and birthweight as representing infant health.  While these ways of operationalizing infant health and prenatal care aren't ideal, they were the best options given the data set. 
+
+Other factors influence birthweight in a positive direction--including being male and in a negative direction--including mother's cigarette consumption. 
+
+Even with our best model, we had a very low r-squared value.  This indicated to us that there were omitted variables. 
+
+
+While doing a randomized controlled trial would be unethical in assigning some mothers as not receiving prenatal care, we think using different statistical techniques and with further research that we can potentially establish a causal link between prenatal health and infant health outcomes.  This research design is beyond the scope of this paper, but may include things like phasing in free prenatal care to different communities that do not have access in order to measure the effect. 
+
+
+In conclusion, while in our model number of prenatal care visits was a statistically signifcant regressor, we cannot prove causality of our models.  We think there may be significant omitted variables that prevent our model from being causal.  There is a strong association, so we would still recommend prenatal care for mothers.  
+
+###References
+
+[1]https://www.nichd.nih.gov/health/topics/pregnancy/conditioninfo/pages/prenatal-care.aspx
+
+[2]https://www.ncbi.nlm.nih.gov/pubmed/7543353
+
+[2a]http://sciencenordic.com/birth-weight-predicts-brain-development
+
+[3]https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1595023/
+
+[4]http://ije.oxfordjournals.org/content/30/6/1233.long
+
+[5]https://www.washingtonpost.com/news/wonk/wp/2014/09/29/our-infant-mortality-rate-is-a-national-embarrassment/?utm_term=.58dedfd178fd
+
+[6]https://www.ncbi.nlm.nih.gov/pubmed/3260664
+
+[7]https://www.ncbi.nlm.nih.gov/pubmed/25108692
